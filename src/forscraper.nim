@@ -33,40 +33,72 @@ proc getLastThreads(start = 0, count = 30): Future[seq[Thread]] {.async.} =
   
   result = body.threads
 
-proc getThreadInfo(id: ForumThreadId): Future[PostList] {.async.} =
+proc getThreadInfo(id: ForumThreadId): Future[Option[PostList]] {.async.} =
   var client = newAsyncHttpClient()
   var resp = await client.get(fmt"{PostsUrl}?id={int(id)}")
   if resp.code != Http200:
     client.close()
     return
   
-  result = parseJson(await resp.body).to(PostList)
+  result = some(parseJson(await resp.body).to(PostList))
   client.close()
+
+proc renderActivity*(activity: int64): string =
+  let currentTime = getTime()
+  let activityTime = fromUnix(activity)
+  let duration = currentTime - activityTime
+  if currentTime.local().year != activityTime.local().year:
+    activityTime.local().format("d MMM yyyy")
+  elif duration.inDays > 30 and duration.inDays < 300:
+    activityTime.local().format("d MMM")
+  elif duration.inDays != 0:
+    $duration.inDays & "d"
+  elif duration.inHours != 0:
+    $duration.inHours & "h"
+  elif duration.inMinutes != 0:
+    $duration.inMinutes & "m"
+  else:
+    $duration.inSeconds & "s"
 
 proc makeThreadEntry(thr: Thread): VNode =
   result = buildHtml():
     tr:
       td(class="thread-title"):
-        a(href="/t/" & $int(thr.id)): text thr.topic
-      td(class="thread-author"): text "placeholder" #$thr.author
-      td(class="hide-sm views-text"): text $thr.views
+        a(href="/t/" & $int(thr.id)): 
+          text thr.topic
+      td(class="thread-title"): 
+        text renderActivity(thr.activity)
+      td(class="thread-title"): 
+        text renderActivity(thr.creation)
+      td(class="hide-sm views-text"): 
+        text $thr.views
+
 
 proc makeThreadsList(p: int, tl: seq[Thread]): VNode =
   result = buildHtml():
-      table(id="threads-list", class="table"):
-        thead:
-          tr:
-            th: text "Topic"
-            th: text "Author"
-            th: text "Views"
+    table(id="threads-list", class="table"):
+      thead:
+        tr:
+          th: text "Topic"
+          th: text "Last activity"
+          th: text "Created"
+          th: text "Views"
 
-        tbody:
-          for thr in tl:
-            makeThreadEntry(thr)
-
+      tbody:
+        if p > 1:
           tr(class = "load-more-separator"):
             td(colspan = "6"):
-              a(href = "/p/" & $(p + 1)):
+              a(href = "/p/" & $(p - 1)):
+                tdiv:
+                  text "Go to the previous page"
+
+        for thr in tl:
+          makeThreadEntry(thr)
+
+        tr(class = "load-more-separator"):
+          td(colspan = "6"):
+            a(href = "/p/" & $(p + 1)):
+              tdiv:
                 text "Go to the next page"
 
 proc makeMainPage(page: int, tl: seq[Thread]): string =
@@ -113,6 +145,9 @@ proc makeThreadPage(pl: PostList): string =
           href="https://forum.nim-lang.org/css/nimforum.css"
         )
         title: text fmt"{pl.thread.topic} - Nim forum"
+        # Google said that this makes the mobile experience better, and
+        # it truly seems so
+        meta(name="viewport", content="width=device-width, initial-scale=1")
       body:
         makePosts(pl)
   result = $vnode
@@ -139,4 +174,7 @@ routes:
       resp "Invalid thread id"
 
     let thr = await getThreadInfo(id)
-    resp makeThreadPage(thr)
+    if thr.isSome():
+      resp makeThreadPage(thr.get())
+    else:
+      resp Http404, "Thread not found! It was either deleted or never existed in the first place!"
