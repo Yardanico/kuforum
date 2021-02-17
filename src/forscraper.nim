@@ -21,7 +21,7 @@ proc getPostContent(p: Post): string =
   else:
     p.info.content
 
-proc getLastThreads(start = 0, count = 30): Future[seq[Thread]] {.async.} =
+proc getLastThreads(start = 0, count = 30): Future[seq[ForumThread]] {.async.} =
   var client = newAsyncHttpClient()
   var resp = await client.get(fmt"{ThreadsUrl}?start={start}&count={count}")
   if resp.code != Http200:
@@ -60,7 +60,7 @@ proc renderActivity*(activity: int64): string =
   else:
     $duration.inSeconds & "s"
 
-proc makeThreadEntry(thr: Thread): VNode =
+proc makeThreadEntry(thr: ForumThread): VNode =
   result = buildHtml():
     tr:
       td(class="thread-title"):
@@ -74,7 +74,7 @@ proc makeThreadEntry(thr: Thread): VNode =
         text $thr.views
 
 
-proc makeThreadsList(p: int, tl: seq[Thread]): VNode =
+proc makeThreadsList(p: int, tl: seq[ForumThread]): VNode =
   result = buildHtml():
     table(id="threads-list", class="table"):
       thead:
@@ -101,7 +101,7 @@ proc makeThreadsList(p: int, tl: seq[Thread]): VNode =
               tdiv:
                 text "Go to the next page"
 
-proc makeMainPage(page: int, tl: seq[Thread]): string =
+proc makeMainPage(page: int, tl: seq[ForumThread]): string =
   let vnode = buildHtml():
     html:
       head:
@@ -110,6 +110,7 @@ proc makeMainPage(page: int, tl: seq[Thread]): string =
           href="https://forum.nim-lang.org/css/nimforum.css"
         )
         title: text "Test forum"
+        meta(name="viewport", content="width=device-width, initial-scale=1")
       body:
         section(class = "thread-list"):
           makeThreadsList(page, tl)

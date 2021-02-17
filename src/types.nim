@@ -47,7 +47,7 @@ type
     rank*: Rank
     isDeleted*: bool
 
-  Thread* = object
+  ForumThread* = object
     id*: int
     topic*: string
     category*: Category
@@ -61,7 +61,7 @@ type
     isSolved*: bool
 
   ThreadList* = ref object
-    threads*: seq[Thread]
+    threads*: seq[ForumThread]
     moreCount*: int ## How many more threads are left
 
   Category* = object
@@ -75,8 +75,8 @@ type
     categories*: seq[Category]
 
   PostList* = ref object
-    thread*: Thread
-    history*: seq[Thread] ## If the thread was edited this will contain the
+    thread*: ForumThread
+    history*: seq[ForumThread] ## If the thread was edited this will contain the
                           ## older versions of the thread (title/category
                           ## changes). TODO
     posts*: seq[Post]
